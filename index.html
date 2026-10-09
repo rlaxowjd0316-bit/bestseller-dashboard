@@ -1,0 +1,598 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="도서 50권의 가격, 출판사 분포 및 상세 목록을 살펴보는 인터랙티브 대시보드">
+  <title>베스트셀러 도서 대시보드</title>
+  <!-- 차트는 Chart.js CDN만 사용하고, CSS와 나머지 JavaScript는 HTML 안에 포함합니다. -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js" defer></script>
+  <style>
+    /* ===== 공통 색상 및 레이아웃 ===== */
+    :root {
+      --bg: #f4f6fb;
+      --surface: #ffffff;
+      --ink: #1c2740;
+      --muted: #748098;
+      --border: #e7ebf3;
+      --primary: #5569df;
+      --primary-soft: #edf0ff;
+      --shadow: 0 12px 35px rgba(31, 49, 89, 0.045);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .container { width: min(1240px, calc(100% - 56px)); margin: 0 auto; }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+
+    /* ===== 상단 제목 영역 ===== */
+    .hero {
+      position: relative;
+      overflow: hidden;
+      /* 상단 제목 영역을 짙은 에메랄드에서 밝은 초록으로 이어지는 색상으로 변경 */
+      background: linear-gradient(112deg, #064e3b 0%, #047857 62%, #16a34a 100%);
+      color: #fff;
+      padding: 49px 0 94px;
+    }
+    .hero::before, .hero::after {
+      content: ""; position: absolute; border-radius: 50%; pointer-events: none;
+      border: 1px solid rgba(255,255,255,0.09);
+    }
+    .hero::before { width: 410px; height: 410px; right: -50px; top: -260px; }
+    .hero::after { width: 340px; height: 340px; right: 170px; bottom: -270px; }
+    .hero-content { position: relative; z-index: 1; }
+    .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+    .eyebrow .mark {
+      display: inline-grid; place-items: center; width: 30px; height: 30px;
+      background: rgba(255,255,255,0.17); border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 9px; font-size: 17px;
+    }
+    .eyebrow span:last-child { font-size: 11px; font-weight: 800; letter-spacing: 2.2px; opacity: .79; }
+    h1 { margin: 0; font-size: clamp(28px, 3.35vw, 43px); letter-spacing: -1.65px; line-height: 1.28; }
+    .hero p { font-size: 14px; color: #d5dff9; margin: 14px 0 0; line-height: 1.75; }
+    .hero-chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      margin-top: 22px; padding: 8px 12px; font-size: 12px; font-weight: 700;
+      border: 1px solid rgba(255,255,255,.19); border-radius: 999px;
+      background: rgba(255,255,255,.10); color: #f1f4ff;
+    }
+    .chip-dot { width: 7px; height: 7px; border-radius: 50%; background: #76e3c1; }
+
+    main { position: relative; margin-top: -53px; padding-bottom: 56px; }
+    section + section { margin-top: 28px; }
+    .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 15px; }
+    .section-heading h2 { margin: 0; font-size: 18px; letter-spacing: -.55px; font-weight: 800; }
+    .section-heading p { margin: 0; font-size: 12px; color: var(--muted); }
+
+    /* ===== 요약 카드 4개 ===== */
+    .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 16px; }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 17px;
+      box-shadow: var(--shadow); min-height: 148px; padding: 23px 23px 21px;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .stat-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .stat-label { color: #78849a; font-size: 13px; font-weight: 700; }
+    .stat-icon { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px; }
+    .stat-icon svg { width: 19px; height: 19px; stroke: currentColor; stroke-width: 1.8; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .indigo { background: #ecedff; color: #6266d8; }
+    .cyan { background: #e6f8f8; color: #21a1a6; }
+    .amber { background: #fff4e8; color: #e0a04d; }
+    .pink { background: #fceefa; color: #c271ae; }
+    .stat-value { font-size: clamp(24px, 2.45vw, 32px); font-weight: 850; letter-spacing: -1.15px; margin-top: 16px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .stat-value .unit { font-size: 16px; font-weight: 700; color: #68758e; margin-left: 3px; }
+
+    /* ===== 가격·출판사 차트 ===== */
+    .chart-grid { display: grid; grid-template-columns: 1.03fr .97fr; gap: 18px; }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); }
+    .chart-panel { padding: 24px 25px 22px; min-width: 0; }
+    .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 18px; }
+    .panel-head h3 { margin: 0 0 7px; font-size: 16px; letter-spacing: -.45px; }
+    .panel-head p { color: #8994a6; font-size: 12px; margin: 0; }
+    .panel-tag { font-size: 11px; font-weight: 750; white-space: nowrap; color: #6875bb; background: #f1f2ff; border-radius: 7px; padding: 6px 8px; }
+    .chart-wrap { position: relative; height: 275px; width: 100%; }
+    .donut-layout { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr); align-items: center; gap: 15px; }
+    .donut-wrap { position: relative; height: 258px; min-width: 0; }
+    .donut-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); text-align: center; pointer-events: none; }
+    .donut-center strong { display: block; font-size: 25px; letter-spacing: -1px; font-weight: 850; }
+    .donut-center span { font-size: 11px; color: var(--muted); white-space: nowrap; }
+    .publisher-legend { display: grid; grid-template-columns: 1fr; gap: 9px; padding: 0; margin: 0; list-style: none; }
+    .publisher-legend li { display: grid; grid-template-columns: 8px minmax(0,1fr) auto; align-items: center; gap: 9px; font-size: 11px; color: #67758b; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .publisher-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .publisher-count { font-weight: 800; color: #2e3a50; font-variant-numeric: tabular-nums; }
+    .chart-error { color: #b44550; background: #fff3f4; padding: 15px; border-radius: 9px; margin-top: 14px; font-size: 13px; }
+
+    /* ===== 도서 테이블과 검색/정렬 ===== */
+    .table-panel { overflow: hidden; }
+    .table-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 24px 25px 19px; }
+    .table-toolbar h3 { margin: 0 0 7px; font-size: 17px; letter-spacing: -.6px; }
+    .table-toolbar p { margin: 0; font-size: 12px; color: #8591a5; }
+    .table-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+    .search-box { position: relative; min-width: min(340px, 72vw); }
+    .search-box svg { position: absolute; width: 17px; height: 17px; left: 14px; top: 50%; transform: translateY(-50%); stroke: #9ba8bd; stroke-width: 2; fill: none; stroke-linecap: round; }
+    .search-box input {
+      display: block; width: 100%; height: 41px; border: 1px solid #dde3ef; border-radius: 10px;
+      padding: 0 14px 0 41px; background: #fafbff; color: var(--ink); font-size: 12px;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .search-box input::placeholder { color: #9aa6ba; }
+    .search-box input:focus { outline: none; border-color: #8290ed; box-shadow: 0 0 0 3px rgba(85,105,223,.12); background: #fff; }
+
+    /* 출간연도 드롭다운: 검색창 바로 옆에 배치합니다. */
+    .year-filter {
+      height: 41px; min-width: 148px; padding: 0 32px 0 13px;
+      border: 1px solid #dde3ef; border-radius: 10px;
+      color: #50617c; background-color: #fafbff;
+      font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+    .year-filter:focus { outline: none; border-color: #8290ed; box-shadow: 0 0 0 3px rgba(85,105,223,.12); }
+    .reset-button { height: 41px; padding: 0 14px; border: 1px solid #e0e6ef; color: #5f6b7e; background: #fff; border-radius: 10px; font-weight: 700; font-size: 12px; }
+    .reset-button:hover { background: #f6f7fd; }
+    .table-meta { display: flex; align-items: center; justify-content: space-between; padding: 0 25px 15px; gap: 12px; font-size: 12px; color: #8a94a7; }
+    .table-meta strong { color: #5569df; }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 890px; }
+    col.rank { width: 7%; } col.title { width: 34%; } col.author { width: 22%; }
+    col.publisher { width: 17%; } col.year { width: 9%; } col.price { width: 11%; }
+    thead { background: #f8f9fd; }
+    thead th { text-align: left; padding: 0 12px; color: #738197; font-size: 12px; border-top: 1px solid #edf0f6; border-bottom: 1px solid #edf0f6; white-space: nowrap; }
+    thead th:first-child, tbody td:first-child { padding-left: 25px; }
+    thead th:last-child, tbody td:last-child { padding-right: 25px; }
+    .sort-button {
+      display: inline-flex; align-items: center; gap: 7px; height: 44px; width: 100%;
+      padding: 0; text-align: left; color: inherit; border: 0; background: none; font-size: inherit; font-weight: 800;
+    }
+    .sort-button:hover, .sort-button:focus-visible { color: var(--primary); }
+    .sort-button:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; border-radius: 2px; }
+    .sort-icon { color: #bac4d5; font-size: 12px; letter-spacing: -2px; white-space: nowrap; }
+    th[aria-sort="ascending"] .sort-icon, th[aria-sort="descending"] .sort-icon { color: var(--primary); }
+    th:last-child .sort-button { justify-content: flex-end; }
+    tbody tr { border-bottom: 1px solid #edf0f6; transition: background .12s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #fafbff; }
+    tbody td { padding: 16px 12px; font-size: 12px; color: #627088; line-height: 1.65; vertical-align: middle; overflow-wrap: anywhere; }
+    .book-title { font-size: 12.5px; font-weight: 800; color: #263249; letter-spacing: -.2px; }
+    .rank-pill { width: 30px; height: 28px; display: inline-grid; place-items: center; border-radius: 8px; color: #7b869b; background: #f3f5f9; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .rank-pill.top { color: #5569df; background: #eef0ff; }
+    .year-pill { display: inline-block; border: 1px solid #e9edf4; background: #fcfdff; padding: 3px 8px; border-radius: 7px; color: #758095; }
+    /* 도서 가격은 천 단위 쉼표를 붙여 출력하며 셀 안에서 오른쪽 정렬합니다. */
+    .price-cell { text-align: right; font-weight: 850; color: #2b3951; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    #empty-state { padding: 40px 15px; text-align: center; color: #8691a3; font-size: 13px; }
+    footer { text-align: center; padding: 0 0 27px; color: #a1aaba; font-size: 11px; }
+
+    /* ===== 모바일·태블릿 반응형 화면 ===== */
+    @media (max-width: 1000px) {
+      .stats-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .chart-grid { grid-template-columns: 1fr; }
+      .donut-layout { grid-template-columns: minmax(150px, 270px) 1fr; justify-content: center; max-width: 590px; margin: 0 auto; }
+    }
+    @media (max-width: 600px) {
+      .container { width: calc(100% - 28px); }
+      .hero { padding: 37px 0 81px; }
+      .hero p { font-size: 12px; }
+      .stats-grid { gap: 10px; }
+      .stat-card { min-height: 120px; padding: 16px; border-radius: 13px; }
+      .stat-icon { width: 30px; height: 30px; }
+      .stat-icon svg { width: 16px; height: 16px; }
+      .stat-label { font-size: 11px; }
+      .stat-value { font-size: 24px; }
+      .stat-value .unit { font-size: 12px; }
+      section + section { margin-top: 22px; }
+      .section-heading h2 { font-size: 17px; }
+      .section-heading p { font-size: 11px; }
+      .chart-panel { padding: 20px 17px; }
+      .chart-wrap { height: 240px; }
+      .donut-layout { grid-template-columns: 1fr; gap: 4px; }
+      .donut-wrap { height: 225px; max-width: 275px; width: 100%; margin: 0 auto; }
+      .publisher-legend { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px 14px; }
+      .table-toolbar { padding: 20px 16px 14px; }
+      .table-actions { width: 100%; }
+      .search-box { flex: 1 1 155px; min-width: 0; }
+      .year-filter { flex: 0 0 135px; min-width: 0; padding-left: 9px; }
+      .table-meta { padding: 0 16px 13px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- 페이지 맨 위: 대시보드 제목과 설명 -->
+  <header class="hero">
+    <div class="container hero-content">
+      <div class="eyebrow"><span class="mark" aria-hidden="true">▥</span><span>BOOK DATA INSIGHTS</span></div>
+      <h1>베스트셀러 도서 대시보드</h1>
+      <p>도서의 가격 분포부터 출판사별 현황까지, 주요 지표를 한눈에 확인해 보세요.</p>
+      <span class="hero-chip"><span class="chip-dot" aria-hidden="true"></span>제공된 도서 데이터 분석 · 총 50권</span>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- 첫 번째 영역: 전체 도서 수, 평균가, 최고가, 출판사 수 -->
+    <section aria-label="도서 데이터 핵심 지표">
+      <div class="stats-grid">
+        <article class="stat-card">
+          <div class="stat-top"><span class="stat-label">전체 도서 수</span><span class="stat-icon indigo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 1 4 17.5z"/><path d="M4 17.5A2.5 2.5 0 0 1 6.5 15H20"/><path d="M8 7h7"/></svg></span></div>
+          <div id="total-books" class="stat-value">—</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top"><span class="stat-label">평균 가격</span><span class="stat-icon cyan" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2v20M16.5 6.5c-1.1-1-2.5-1.5-4.6-1.5-4.9 3.8 0 5 10 2.2 10 7.2 0 2.4-2.1 4-5.1 4-2.2 0-4.1-.8-5.4-2"/></svg></span></div>
+          <div id="average-price" class="stat-value">—</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top"><span class="stat-label">최고 가격</span><span class="stat-icon amber" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.8 6.4.9-4.6 4.5 1.1 6.3-5.7-3-5.7 3 1.1-6.3-4.6-4.5 6.4-.9z"/></svg></span></div>
+          <div id="highest-price" class="stat-value">—</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top"><span class="stat-label">출판사 수</span><span class="stat-icon pink" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 10v2M15 10v2M9 15v2M15 15v2"/></svg></span></div>
+          <div id="publisher-count" class="stat-value">—</div>
+        </article>
+      </div>
+    </section>
+
+    <!-- 두 번째 영역: 가격대 막대차트와 상위 출판사 도넛차트 -->
+    <section aria-labelledby="charts-title">
+      <div class="section-heading"><h2 id="charts-title">데이터 한눈에 보기</h2><p>전체 도서 데이터 기준</p></div>
+      <div class="chart-grid">
+        <article class="panel chart-panel">
+          <div class="panel-head">
+            <div><h3>가격대별 도서 수</h3><p>가격 구간별 도서 분포 현황</p></div>
+            <span class="panel-tag">PRICE RANGE</span>
+          </div>
+          <div class="chart-wrap"><canvas id="priceChart" role="img" aria-label="가격대별 도서 수 막대차트"></canvas></div>
+        </article>
+        <article class="panel chart-panel">
+          <div class="panel-head">
+            <div><h3>출판사별 도서 수</h3><p>도서 수 상위 8개 출판사 및 기타</p></div>
+            <span class="panel-tag">TOP 8</span>
+          </div>
+          <div class="donut-layout">
+            <div class="donut-wrap">
+              <canvas id="publisherChart" role="img" aria-label="상위 8개 출판사별 도서 수 도넛차트"></canvas>
+              <div class="donut-center" aria-hidden="true"><strong id="donutTotal">—</strong><span>전체 도서</span></div>
+            </div>
+            <ul id="publisherLegend" class="publisher-legend" aria-label="출판사별 도서 수 범례"></ul>
+          </div>
+        </article>
+      </div>
+      <p id="chart-error" class="chart-error" role="alert" hidden>Chart.js를 불러오지 못했습니다. 인터넷 연결을 확인하시면 차트를 볼 수 있습니다. 요약 카드와 도서표는 그대로 이용하실 수 있습니다.</p>
+    </section>
+
+    <!-- 세 번째 영역: 텍스트 검색·출간연도 필터·열 제목 정렬을 지원하는 전체 목록 -->
+    <section aria-labelledby="table-title">
+      <div class="section-heading"><h2 id="table-title">전체 도서 목록</h2><p>열 제목을 눌러 정렬할 수 있습니다</p></div>
+      <div class="panel table-panel">
+        <div class="table-toolbar">
+          <div><h3>도서 상세 정보</h3><p>제목, 저자, 출판사로 원하는 도서를 찾아보세요.</p></div>
+          <div class="table-actions">
+            <label class="search-box">
+              <span class="sr-only">도서 검색</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.7"/><path d="m16 16 5 5"/></svg>
+              <input id="bookSearch" type="search" placeholder="제목, 저자, 출판사 검색..." autocomplete="off">
+            </label>
+            <!-- 출간연도 목록은 데이터에서 추출해 자동으로 생성합니다. -->
+            <label class="sr-only" for="yearFilter">출간연도 선택</label>
+            <select id="yearFilter" class="year-filter" aria-label="출간연도로 필터링">
+              <option value="">전체 연도</option>
+            </select>
+            <button id="resetBtn" class="reset-button" type="button">초기화</button>
+          </div>
+        </div>
+        <div class="table-meta"><span id="resultCount" aria-live="polite">검색 결과 불러오는 중...</span><span>가격 단위: 원</span></div>
+        <div class="table-scroll" role="region" aria-label="도서 목록 좌우 스크롤 영역" tabindex="0">
+          <table>
+            <colgroup><col class="rank"><col class="title"><col class="author"><col class="publisher"><col class="year"><col class="price"></colgroup>
+            <thead><tr>
+              <th scope="col" data-key="rank" aria-sort="ascending"><button type="button" class="sort-button" data-sort="rank">순위 <span class="sort-icon" aria-hidden="true">↑</span></button></th>
+              <th scope="col" data-key="title" aria-sort="none"><button type="button" class="sort-button" data-sort="title">제목 <span class="sort-icon" aria-hidden="true">↕</span></button></th>
+              <th scope="col" data-key="author" aria-sort="none"><button type="button" class="sort-button" data-sort="author">저자 <span class="sort-icon" aria-hidden="true">↕</span></button></th>
+              <th scope="col" data-key="publisher" aria-sort="none"><button type="button" class="sort-button" data-sort="publisher">출판사 <span class="sort-icon" aria-hidden="true">↕</span></button></th>
+              <th scope="col" data-key="year" aria-sort="none"><button type="button" class="sort-button" data-sort="year">출간연도 <span class="sort-icon" aria-hidden="true">↕</span></button></th>
+              <th scope="col" data-key="price" aria-sort="none"><button type="button" class="sort-button" data-sort="price">가격 <span class="sort-icon" aria-hidden="true">↕</span></button></th>
+            </tr></thead>
+            <tbody id="bookTableBody"></tbody>
+          </table>
+          <div id="empty-state" hidden>검색 결과가 없습니다. 다른 검색어를 입력해 주세요.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer>BOOK DATA DASHBOARD · 제공된 CSV 데이터 50건 활용</footer>
+
+  <script>
+    "use strict";
+
+    // ===== 원본 CSV의 50개 행을 HTML 내부 자바스크립트 배열로 직접 포함 =====
+    // 배열 순서: [순위, 제목, 저자, 출판사, 출간연도, 가격]
+    // CSV 파일을 따로 읽거나 외부 API에서 도서 데이터를 가져오지 않습니다.
+    const bookRows = [
+      [1, "세네카, 오늘을 빼앗기고 있는 당신에게", "루키우스 안나이우스 세네카, 하와이 대저택", "논픽션", 2026, 16200],
+      [2, "그랬다고 적었다", "김애란", "문학동네", 2026, 15300],
+      [3, "한국사 이상현상 연구원", "최인서", "다이브", 2026, 19800],
+      [4, "싯다르타", "헤르만 헤세, 박병덕", "민음사", 2002, 7200],
+      [5, "백야 (먼슬리 클래식)", "표도르 도스토옙스키, 박은정", "문학동네", 2026, 13050],
+      [6, "카구라바치 11 (더블특전판)", "호카조노 타케루", "대원씨아이(만화)", 2026, 5850],
+      [7, "수족관", "유래혁", "포스터샵", 2023, 15930],
+      [8, "트렌드 코리아 2027", "김난도, 전미영, 최지혜, 권정윤, 한다혜, 이혜원, 이수진, 전다현, 서유현, 이준영, 이향은, 김나은, 문지수", "미래의창", 2026, 19800],
+      [9, "찌니주의보", "정지아", "창비", 2026, 15120],
+      [10, "서리꽃 세트 - 전2권 (초판 한정 케이스 + 조정래 작가노트)", "조정래", "해냄", 2026, 36000],
+      [11, "오뒷세이아", "호메로스, 김헌", "을유문화사", 2026, 22500],
+      [12, "호프 끝장", "금동현, 김해솔, 박동수, 배은열, 신포도, 유유민, 이광호, 정미파, 한상희, 조일남, 윤아랑", "디깅룸", 2026, 15120],
+      [13, "빵충 사육 준수 사항", "김혜영", "안전가옥", 2026, 15120],
+      [14, "오뒷세이아 (알라딘 리커버 특별판)", "호메로스, 천병희", "도서출판 숲", 2015, 29700],
+      [15, "모순", "양귀자", "쓰다", 2013, 11700],
+      [16, "테오", "앨런 레비, 노지양", "오팬하우스", 2026, 18900],
+      [17, "칵테일을 마시는 철학자들", "세라 베이크웰, 조영", "다산초당", 2026, 23400],
+      [18, "2026 큰별쌤 최태성의 별★별한국사 한국사능력검정시험 심화(1, 2, 3급) 상", "최태성", "이투스북", 2025, 17100],
+      [19, "신경 끄기의 기술 (한교동 에디션)", "마크 맨슨, 한재호", "갤리온", 2026, 17100],
+      [20, "기쁨에도 슬픔에도 아랑곳없이", "박준", "난다", 2026, 19800],
+      [21, "브람스를 좋아하세요...", "프랑수아즈 사강, 김남주", "민음사", 2008, 9000],
+      [22, "데미안", "헤르만 헤세, 전영애", "민음사", 2000, 7200],
+      [23, "안녕, 피터팬", "전경철", "이야기장수", 2026, 19800],
+      [24, "절창 (20만 부 기념 화이트 에디션)", "구병모", "문학동네", 2025, 16200],
+      [25, "2026 큰별쌤 최태성의 별★별한국사 한국사능력검정시험 심화(1, 2, 3급) 하", "최태성", "이투스북", 2025, 16650],
+      [26, "에그박사 19", "에그박사 (원작), 박송이, 홍종현, 이승현 (감수)", "미래엔아이세움", 2026, 15120],
+      [27, "브레인 악셀", "이진우", "바른뇌연구소", 2026, 19800],
+      [28, "노무현 평전", "윤태영, 사람사는세상 노무현재단 (기획)", "위즈덤하우스", 2026, 44550],
+      [29, "찰리 멍거 바이블 완결판", "김재현, 이건", "에프엔미디어", 2026, 27000],
+      [30, "오디세이아 (국내 유일 명화 104점 수록 완역본)", "호메로스, 페테르 파울 루벤스, 박문재", "현대지성", 2025, 24300],
+      [31, "사죠 리히토의 아버지와 그의 부하 상.하 세트 - 전2권", "나카무라 아스미코", "조은세상(북두)", 2026, 34200],
+      [32, "데뷔 못 하면 죽는 병 걸림 5부 초판 한정 굿즈박스 세트 - 전4권", "백덕수", "위시북스(KW북스)", 2026, 129600],
+      [33, "마음의 어휘력", "조아란, 권희, 이정윤", "페이지2(page2)", 2026, 15120],
+      [34, "눈 내리는 삼일포", "김연수", "문학동네", 2026, 16200],
+      [35, "문해내공", "신종호, 김윤정", "상상스퀘어", 2026, 22500],
+      [36, "타몬 군 지금 어느 쪽?! 14", "시와스 유키, 최윤정", "학산문화사(만화)", 2026, 6300],
+      [37, "니체의 초월자", "프리드리히 니체, 김철", "히읏", 2025, 15210],
+      [38, "ETS 토익 정기시험 기출문제집 1000 Vol. 5 Reading (리딩)", "ETS", "(주)YBM(와이비엠)", 2025, 19800],
+      [39, "처음 읽는 그리스 로마 신화 15", "최설희, 한현동, 정수영 (구성)", "미래엔아이세움", 2026, 15120],
+      [40, "코스모스 (100만 부 기념판)", "칼 세이건, 홍승수", "사이언스북스", 2026, 19800],
+      [41, "ETS 토익 정기시험 기출문제집 1000 Vol. 5 Listening (리스닝)", "ETS", "(주)YBM(와이비엠)", 2025, 19800],
+      [42, "처음 읽는 삼국지 5", "이문열, 한현동 (원작), 윤종문 (구성)", "미래엔아이세움", 2026, 15120],
+      [43, "이상한 지도", "우케쓰, 김은모", "리드비", 2026, 16920],
+      [44, "녹색 절벽의 신자들", "조예은", "오리지널스", 2026, 17100],
+      [45, "일리아스 (알라딘 리커버 특별판)", "호메로스, 천병희", "도서출판 숲", 2015, 34200],
+      [46, "김진순의 인생 레시피 1", "김진순", "길벗", 2026, 21600],
+      [47, "어제 뭐 먹었어? 25", "요시나가 후미", "삼양출판사(만화)", 2026, 5400],
+      [48, "투명한 나선", "히가시노 게이고, 김선영", "북다", 2026, 19800],
+      [49, "아르고스", "이승형", "한겨레출판", 2026, 15120],
+      [50, "이방인", "알베르 카뮈, 김화영", "민음사", 2019, 9000]
+    ];
+
+    // 각 행을 이름이 있는 객체로 변환하면 검색·차트·정렬 코드를 읽기 쉬워집니다.
+    const books = bookRows.map(([rank, title, author, publisher, year, price]) => ({
+      rank, title, author, publisher, year, price
+    }));
+    const comma = value => Number(value).toLocaleString("ko-KR");
+    // 숫자를 한국식 천 단위 쉼표가 포함된 원화 문자열로 변환합니다. (예: 15300 → 15,300원)
+    const won = value => `${comma(value)}원`;
+
+    // ===== 요약 카드: 항상 제공된 전체 도서 50권을 기준으로 계산 =====
+    const totalBooks = books.length;
+    const averagePrice = Math.round(books.reduce((sum, book) => sum + book.price, 0) / totalBooks);
+    const highestPrice = Math.max(...books.map(book => book.price));
+    const publisherCounts = new Map();
+    books.forEach(book => publisherCounts.set(book.publisher, (publisherCounts.get(book.publisher) || 0) + 1));
+    document.getElementById("total-books").innerHTML = `${comma(totalBooks)}<span class="unit">권</span>`;
+    document.getElementById("average-price").innerHTML = `${comma(averagePrice)}<span class="unit">원</span>`;
+    document.getElementById("highest-price").innerHTML = `${comma(highestPrice)}<span class="unit">원</span>`;
+    document.getElementById("publisher-count").innerHTML = `${comma(publisherCounts.size)}<span class="unit">곳</span>`;
+    document.getElementById("donutTotal").textContent = comma(totalBooks);
+
+    // ===== 막대차트 가격 구간: 상한은 미포함, 마지막은 5만원 이상 =====
+    const priceRanges = [
+      { label: "1만원 미만", min: 0, max: 10000 },
+      { label: "1~2만원 미만", min: 10000, max: 20000 },
+      { label: "2~3만원 미만", min: 20000, max: 30000 },
+      { label: "3~5만원 미만", min: 30000, max: 50000 },
+      { label: "5만원 이상", min: 50000, max: Infinity }
+    ];
+    const priceCounts = priceRanges.map(range => books.filter(book => book.price >= range.min && book.price < range.max).length);
+
+    // ===== 출판사 데이터: 도서 수 내림차순, 동률이면 가나다순 / 상위 8개 외에는 기타 =====
+    const sortedPublishers = [...publisherCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ko"));
+    const top8 = sortedPublishers.slice(0, 8);
+    const otherCount = sortedPublishers.slice(8).reduce((sum, [, count]) => sum + count, 0);
+    const chartPublishers = otherCount > 0 ? [...top8, ["기타", otherCount]] : top8;
+    const chartColors = ["#586ce0", "#8998f0", "#33b5bd", "#f0b16e", "#d67caa", "#7887ad", "#7ac2a4", "#ad92d7", "#dfe4ee"];
+
+    // 차트를 사용할 수 없는 오프라인 환경에서도 범례 및 표 데이터는 표시합니다.
+    const legend = document.getElementById("publisherLegend");
+    chartPublishers.forEach(([name, count], index) => {
+      const item = document.createElement("li");
+      const dot = document.createElement("span");
+      dot.className = "legend-dot";
+      dot.style.backgroundColor = chartColors[index];
+      const label = document.createElement("span");
+      label.className = "publisher-name";
+      label.textContent = name;
+      label.title = name;
+      const amount = document.createElement("span");
+      amount.className = "publisher-count";
+      amount.textContent = `${count}권`;
+      item.append(dot, label, amount);
+      legend.appendChild(item);
+    });
+
+    // ===== 테이블 검색·연도 필터·정렬: 원본 배열은 보존 =====
+    const tbody = document.getElementById("bookTableBody");
+    const searchInput = document.getElementById("bookSearch");
+    const yearSelect = document.getElementById("yearFilter");
+
+    // 데이터에 실제로 존재하는 연도만 선택지에 표시합니다(최신 연도부터).
+    [...new Set(books.map(book => book.year))]
+      .sort((a, b) => b - a)
+      .forEach(year => {
+        const option = document.createElement("option");
+        option.value = String(year);
+        option.textContent = `${year}년`;
+        yearSelect.appendChild(option);
+      });
+    const resetButton = document.getElementById("resetBtn");
+    const resultCount = document.getElementById("resultCount");
+    const emptyState = document.getElementById("empty-state");
+    const sortButtons = document.querySelectorAll("[data-sort]");
+    const textCollator = new Intl.Collator("ko", { numeric: true, sensitivity: "base" });
+    let sortKey = "rank";
+    let sortDirection = "asc";
+
+    // td를 안전하게 구성하고, 제목/저자에 쉼표가 있어도 셀 내용이 어긋나지 않게 합니다.
+    function addCell(row, text, className = "") {
+      const cell = document.createElement("td");
+      cell.textContent = text;
+      if (className) cell.className = className;
+      row.appendChild(cell);
+      return cell;
+    }
+
+    function renderTable() {
+      const query = searchInput.value.normalize("NFC").trim().toLocaleLowerCase("ko");
+      const selectedYear = yearSelect.value;
+
+      // 텍스트 검색과 연도 선택이 모두 설정된 경우 두 조건을 동시에 만족해야 표시됩니다.
+      const filtered = books.filter(book =>
+        (selectedYear === "" || book.year === Number(selectedYear)) &&
+        [book.title, book.author, book.publisher].some(value =>
+          value.normalize("NFC").toLocaleLowerCase("ko").includes(query)
+        )
+      );
+
+      filtered.sort((a, b) => {
+        const left = a[sortKey], right = b[sortKey];
+        const compare = typeof left === "number" ? left - right : textCollator.compare(left, right);
+        // 동일한 값은 원래 순위를 기준으로 다시 정렬하여 표시 순서를 일정하게 유지합니다.
+        return (sortDirection === "asc" ? compare : -compare) || a.rank - b.rank;
+      });
+
+      const fragment = document.createDocumentFragment();
+      filtered.forEach(book => {
+        const tr = document.createElement("tr");
+        const rankCell = addCell(tr, "");
+        const badge = document.createElement("span");
+        badge.className = `rank-pill${book.rank <= 3 ? " top" : ""}`;
+        badge.textContent = book.rank;
+        rankCell.appendChild(badge);
+        addCell(tr, book.title, "book-title");
+        addCell(tr, book.author);
+        addCell(tr, book.publisher);
+        const yearCell = addCell(tr, "");
+        const yearBadge = document.createElement("span");
+        yearBadge.className = "year-pill";
+        yearBadge.textContent = book.year;
+        yearCell.appendChild(yearBadge);
+        addCell(tr, won(book.price), "price-cell");
+        fragment.appendChild(tr);
+      });
+      tbody.replaceChildren(fragment);
+      resultCount.innerHTML = `전체 <strong>${comma(books.length)}</strong>권 중 <strong>${comma(filtered.length)}</strong>권 표시`;
+      emptyState.hidden = filtered.length !== 0;
+      // 검색 결과가 없을 때 표 아래 안내 문구 표시
+    }
+
+    // 클릭한 열을 오름차순으로 시작, 같은 열을 다시 누르면 내림차순 전환합니다.
+    function updateSortHeaders() {
+      document.querySelectorAll("thead th[data-key]").forEach(header => {
+        const active = header.dataset.key === sortKey;
+        header.setAttribute("aria-sort", active ? (sortDirection === "asc" ? "ascending" : "descending") : "none");
+        header.querySelector(".sort-icon").textContent = active ? (sortDirection === "asc" ? "↑" : "↓") : "↕";
+      });
+    }
+    sortButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        const newKey = button.dataset.sort;
+        sortDirection = sortKey === newKey && sortDirection === "asc" ? "desc" : "asc";
+        sortKey = newKey;
+        updateSortHeaders();
+        renderTable();
+      });
+    });
+    searchInput.addEventListener("input", renderTable);
+    yearSelect.addEventListener("change", renderTable);
+    resetButton.addEventListener("click", () => {
+      // 초기화 시 검색어와 출간연도 필터를 함께 해제합니다.
+      searchInput.value = "";
+      yearSelect.value = "";
+      sortKey = "rank";
+      sortDirection = "asc";
+      updateSortHeaders();
+      renderTable();
+      searchInput.focus();
+    });
+    renderTable();
+
+    // ===== Chart.js 차트 초기화 =====
+    // CDN의 defer 스크립트가 준비된 이후 호출합니다.
+    window.addEventListener("load", () => {
+      if (typeof Chart === "undefined") {
+        document.getElementById("chart-error").hidden = false;
+        return;
+      }
+      Chart.defaults.font.family = '"Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+      Chart.defaults.color = "#8791a4";
+
+      new Chart(document.getElementById("priceChart"), {
+        type: "bar",
+        data: {
+          labels: priceRanges.map(range => range.label),
+          datasets: [{
+            label: "도서 수", data: priceCounts,
+            backgroundColor: ["#a6b0f4", "#586ce0", "#8a9bef", "#a6b0f4", "#c1c9ef"],
+            borderRadius: 7, borderSkipped: false, maxBarThickness: 58
+          }]
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              displayColors: false,
+              backgroundColor: "#243451", padding: 12,
+              callbacks: { label: context => `도서 수: ${context.parsed.y}권` }
+            }
+          },
+          scales: {
+            x: { grid: { display: false }, border: { display: false }, ticks: { font: { size: 11 }, maxRotation: 0, autoSkip: false } },
+            y: { beginAtZero: true, ticks: { stepSize: 5, precision: 0, callback: value => `${value}권` }, grid: { color: "#edf0f7" }, border: { display: false } }
+          }
+        }
+      });
+
+      new Chart(document.getElementById("publisherChart"), {
+        type: "doughnut",
+        data: {
+          labels: chartPublishers.map(([name]) => name),
+          datasets: [{
+            data: chartPublishers.map(([, count]) => count),
+            backgroundColor: chartColors.slice(0, chartPublishers.length),
+            borderColor: "#ffffff", borderWidth: 3, hoverOffset: 7,
+            borderRadius: 3
+          }]
+        },
+        options: {
+          maintainAspectRatio: false, cutout: "72%",
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: "#243451", padding: 12,
+              callbacks: { label: context => ` ${context.label}: ${context.parsed}권 (${(context.parsed / totalBooks * 100).toFixed(1)}%)` }
+            }
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>
+
+
+
