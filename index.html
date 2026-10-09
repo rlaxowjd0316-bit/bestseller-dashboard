@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -61,7 +62,27 @@
       border-radius: 9px; font-size: 17px;
     }
     .eyebrow span:last-child { font-size: 11px; font-weight: 800; letter-spacing: 2.2px; opacity: .79; }
-    h1 { margin: 0; font-size: clamp(28px, 3.35vw, 43px); letter-spacing: -1.65px; line-height: 1.28; }
+
+    /* 제목 옆에 고정 기준월을 작은 글씨로 표시합니다. */
+    .hero-title-row {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 3.35vw, 43px);
+      letter-spacing: -1.65px;
+      line-height: 1.28;
+    }
+    .hero-asof {
+      color: rgba(255,255,255,.85);
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
     .hero p { font-size: 14px; color: #d5dff9; margin: 14px 0 0; line-height: 1.75; }
     .hero-chip {
       display: inline-flex; align-items: center; gap: 8px;
@@ -169,6 +190,7 @@
     .rank-pill { width: 30px; height: 28px; display: inline-grid; place-items: center; border-radius: 8px; color: #7b869b; background: #f3f5f9; font-weight: 800; font-variant-numeric: tabular-nums; }
     .rank-pill.top { color: #5569df; background: #eef0ff; }
     .year-pill { display: inline-block; border: 1px solid #e9edf4; background: #fcfdff; padding: 3px 8px; border-radius: 7px; color: #758095; }
+
     /* 도서 가격은 천 단위 쉼표를 붙여 출력하며 셀 안에서 오른쪽 정렬합니다. */
     .price-cell { text-align: right; font-weight: 850; color: #2b3951; font-variant-numeric: tabular-nums; white-space: nowrap; }
     #empty-state { padding: 40px 15px; text-align: center; color: #8691a3; font-size: 13px; }
@@ -184,6 +206,7 @@
       .container { width: calc(100% - 28px); }
       .hero { padding: 37px 0 81px; }
       .hero p { font-size: 12px; }
+      .hero-asof { font-size: 11px; }
       .stats-grid { gap: 10px; }
       .stat-card { min-height: 120px; padding: 16px; border-radius: 13px; }
       .stat-icon { width: 30px; height: 30px; }
@@ -212,7 +235,13 @@
   <header class="hero">
     <div class="container hero-content">
       <div class="eyebrow"><span class="mark" aria-hidden="true">▥</span><span>BOOK DATA INSIGHTS</span></div>
-      <h1>베스트셀러 도서 대시보드</h1>
+
+      <!-- 오늘 날짜가 아닌, 지정된 고정 기준월을 제목 옆에 표시합니다. -->
+      <div class="hero-title-row">
+        <h1>베스트셀러 도서 대시보드</h1>
+        <span class="hero-asof">2026년 10월 기준</span>
+      </div>
+
       <p>도서의 가격 분포부터 출판사별 현황까지, 주요 지표를 한눈에 확인해 보세요.</p>
       <span class="hero-chip"><span class="chip-dot" aria-hidden="true"></span>제공된 도서 데이터 분석 · 총 50권</span>
     </div>
@@ -374,6 +403,7 @@
       rank, title, author, publisher, year, price
     }));
     const comma = value => Number(value).toLocaleString("ko-KR");
+
     // 숫자를 한국식 천 단위 쉼표가 포함된 원화 문자열로 변환합니다. (예: 15300 → 15,300원)
     const won = value => `${comma(value)}원`;
 
@@ -424,7 +454,7 @@
       legend.appendChild(item);
     });
 
-    // ===== 테이블 검색·연도 필터·정렬: 원본 배열은 보존 =====
+    // ===== 테이블 검색과 정렬: 데이터 복사본만 정렬하여 원본 배열은 보존 =====
     const tbody = document.getElementById("bookTableBody");
     const searchInput = document.getElementById("bookSearch");
     const yearSelect = document.getElementById("yearFilter");
